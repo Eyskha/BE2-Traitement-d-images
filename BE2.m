@@ -2,12 +2,11 @@ clear
 close all
 
 images = [1:13 26 39 123 129 185 5001 5003 5005 5007 7000 7003 7016:7018 7020 9000:9002 9005 9010 9013:9017 9019 9023 9026:9029 9031 9034 9035 9041 9043 9044 9048 9054 9057 9059 9060 9062 9063 9071 9074:9076 10001];
-for i=1:length(images)
-   images(i)
-   detection_texte(num2str(images(i)),'.jpg',false);
+for i=1:5
+   detection_texte(num2str(images(i)),'.jpg',false,0.125,0.7,0.02,0.15);
 end
 
-function detection_texte(image,type,intermediateDisplay)
+function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance)
     %% 3.1 Digital image tranformation
     % Conversion jpg to bmp
 %     I = imread(strcat('Images\',image,type));
@@ -50,19 +49,16 @@ function detection_texte(image,type,intermediateDisplay)
     if intermediateDisplay
         subplot(3, 4, 6), imshow(Binary3), title("Binary3 th = "+threshold3);
     end
-
-    threshold4 = 0.75;
-    Binary4 = im2bw(G,threshold4);
+    
+    Binary = im2bw(G,thresholdBinary);
     if intermediateDisplay
-        subplot(3, 4, 7), imshow(Binary4), title("Binary4 th = "+threshold3);
+        subplot(3, 4, 7), imshow(Binary), title("Binary th = "+thresholdBinary);
     end
-    Binary = Binary3;
 
     % Multi-resolution method : nearest neighbour method
-    M = 0.125;
-    J = imresize(Binary,M);
+    J = imresize(Binary,resizeFactor);
     if intermediateDisplay
-        subplot(3, 4, 8), imshow(J), title("J with th =" + threshold3);
+        subplot(3, 4, 8), imshow(J), title("J with th =" + thresholdBinary);
     end
     
 
@@ -88,14 +84,12 @@ function detection_texte(image,type,intermediateDisplay)
     if intermediateDisplay
         subplot(3, 4, 10), plot(Hist), xlim([0 255]), title("G histogram");
     end
-
-    thresholdSeparation = 0.02;
-
+    
     nbPixels = Hist(255); u = 255; L = 255;
     [m,n] = size(G);
     nbTotPixels = m*n;
 
-    while nbPixels <= thresholdSeparation*nbTotPixels
+    while nbPixels <= thresholdSelection*nbTotPixels
         u = u - 1;
         nbPixels = nbPixels + Hist(u);
     end
@@ -125,29 +119,23 @@ function detection_texte(image,type,intermediateDisplay)
     end
 
         % Get regions limits for initial resolution
-    regionsLimitsHighRes = [1 1 -1 -1]+regionsLimitsLowRes/M;    
-    
-    regionsLimitsLowRes
-    size(ITextRegion)
-    regionsLimitsHighRes
-    size(I)
+    regionsLimitsHighRes = regionsLimitsLowRes/resizeFactor;
 
     effectiveTextRegion = [];
-    thresholdTextRegion = 0.15;
 
     if intermediateDisplay
         figure();
     end
     for i=1:height(regionsLimitsHighRes)
         topleftx = max(regionsLimitsHighRes(i,1),1);
-        toplefty = regionsLimitsHighRes(i,2);
+        toplefty = max(regionsLimitsHighRes(i,2),1);
         widthRect = regionsLimitsHighRes(i,3);
         if topleftx+widthRect > n
-           widthRect = widthRect - mod(n,1/M);
+           widthRect = widthRect - mod(n,1/resizeFactor) - 1;
         end
-        heightRect = regionsLimitsHighRes(i,4);
+        heightRect = regionsLimitsHighRes(i,4) - 1;
         if toplefty+heightRect > m
-           heightRect = heightRect - mod(m,1/M);
+           heightRect = heightRect - mod(m,1/resizeFactor);
         end
         % Histogram for each region
         H = imhist(G2(toplefty:toplefty+heightRect,topleftx:topleftx+widthRect));
@@ -164,7 +152,7 @@ function detection_texte(image,type,intermediateDisplay)
         distMaxima = abs(locs(1) - locs(2));
 
         % Filter effective text regions
-        if distMaxima > thresholdTextRegion*255
+        if distMaxima > thresholdTextRegionDistance*255
             effectiveTextRegion = [ effectiveTextRegion ; regionsLimitsHighRes(i,:)];
         end
     end
