@@ -3,8 +3,17 @@ close all
 
 images = [1:13 26 39 123 129 185 5001 5003 5005 5007 7000 7003 7016:7018 7020 9000:9002 9005 9010 9013:9017 9019 9023 9026:9029 9031 9034 9035 9041 9043 9044 9048 9054 9057 9059 9060 9062 9063 9071 9074:9076 10001];
 for i=1:5
-   detection_texte(num2str(images(i)),'.jpg',false,0.125,0.7,0.02,0.15);
+    I = imread(strcat('Images\',num2str(images(i)),'.bmp'));
+    resizeFactor = 80/length(I);
+    thresholdBinary = 0.7;
+    thresholdSelection = 0.02;
+    thresholdTextRegionDistance = 0.15;
+    detection_texte(I,'.jpg',false,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance);
 end
+
+% thresholdBinary : si sup au seuil alors 1 sinon 0 pour image binaire. 
+% thresholdSelection : 
+% thresholdTextRegionDistance : si 
 
 function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance)
     %% 3.1 Digital image tranformation
@@ -13,7 +22,7 @@ function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBi
 %     imwrite(I,strcat('Images\',image,'.bmp'));
 
     % Get RGB image
-    I = imread(strcat('Images\',image,'.bmp'));
+    I = image;
     if intermediateDisplay
         figure, subplot(3, 4, 1), imshow(I,[0,255]), title("I");
     end
@@ -28,6 +37,9 @@ function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBi
     if intermediateDisplay
         subplot(3, 4, 3), imshow(Gtranspose), title("Gtranspose");
     end
+    
+    % Background Pixel Separation
+    G = bckgrndPixelSeparation(G,intermediateDisplay,thresholdSelection);
 
 
     %% 3.2 Enhancement of text region patterns
@@ -74,39 +86,10 @@ function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBi
     if intermediateDisplay
         subplot(3, 4, 9), imshow(ITextRegion), title("ITextRegion");
     end
-
-
+    
     %% 3.4 Selection of effective text regions
     % Background pixels separation : back to G (gray levels image)
-
-        % Contruction intervalle [u,L]
-    Hist = imhist(G);
-    if intermediateDisplay
-        subplot(3, 4, 10), plot(Hist), xlim([0 255]), title("G histogram");
-    end
-    
-    nbPixels = Hist(255); u = 255; L = 255;
-    [m,n] = size(G);
-    nbTotPixels = m*n;
-
-    while nbPixels <= thresholdSelection*nbTotPixels
-        u = u - 1;
-        nbPixels = nbPixels + Hist(u);
-    end
-
-
-        % Equation 2 transformation
-    G = double(G); %sinon pb avec multiplication matrice car int
-    G2 = uint8((G<=u).*G + (G>u)*L);
-    if intermediateDisplay
-        subplot(3, 4, 11), imshow(G2), title("G separation eq2");
-    end
-
-    G3 = uint8((G<=u)*u + (G>u)*L);
-    if intermediateDisplay
-        subplot(3, 4, 12), imshow(G3), title("G separation eq3");
-    end
-    
+        % function Gsortie = bckgrndPixelSeparation(G)
 
     % Effective text region filtering
     % - Calcul distance entre maxs : si sup à un seuil (15po) alors calssifié comme region de texte
@@ -119,7 +102,25 @@ function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBi
     end
 
         % Get regions limits for initial resolution
-    regionsLimitsHighRes = regionsLimitsLowRes/resizeFactor;
+    regionsLimitsHighRes = floor(regionsLimitsLowRes/resizeFactor);
+    
+    rBis = []; % Ajust limits to enter image size
+    for i=1:height(regionsLimitsHighRes)
+        toplefty = max(regionsLimitsHighRes(i,1),1);
+        topleftx = max(regionsLimitsHighRes(i,2),1);
+        widthRect = regionsLimitsHighRes(i,3);        
+        if toplefty+widthRect > width(I)
+           widthRect = floor(widthRect - mod(width(I),1/resizeFactor) - 1);
+        end
+        heightRect = regionsLimitsHighRes(i,4);
+        if topleftx+heightRect > height(I)
+           heightRect = floor(heightRect - mod(height(I),1/resizeFactor));
+        end
+        rBis= [rBis ; [toplefty topleftx widthRect heightRect]];
+    end
+    regionsLimitsHighRes = rBis;
+    
+    regionsLimitsHighRes = improvementLocalization(G,regionsLimitsHighRes,255);
 
     effectiveTextRegion = [];
 
@@ -127,18 +128,12 @@ function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBi
         figure();
     end
     for i=1:height(regionsLimitsHighRes)
-        topleftx = max(regionsLimitsHighRes(i,1),1);
-        toplefty = max(regionsLimitsHighRes(i,2),1);
-        widthRect = regionsLimitsHighRes(i,3);
-        if topleftx+widthRect > n
-           widthRect = widthRect - mod(n,1/resizeFactor) - 1;
-        end
-        heightRect = regionsLimitsHighRes(i,4) - 1;
-        if toplefty+heightRect > m
-           heightRect = heightRect - mod(m,1/resizeFactor);
-        end
+        toplefty = regionsLimitsHighRes(i,1);
+        topleftx = regionsLimitsHighRes(i,2);
+        widthRect = regionsLimitsHighRes(i,3);  
+        heightRect = regionsLimitsHighRes(i,4);
         % Histogram for each region
-        H = imhist(G2(toplefty:toplefty+heightRect,topleftx:topleftx+widthRect));
+        H = imhist(G(topleftx:topleftx+heightRect,toplefty:toplefty+widthRect));
         if intermediateDisplay
             subplot(3,3,i), plot(H), xlim([0 255]), title("Hist region "+i);
         end
@@ -234,6 +229,143 @@ function J = thirdmask(I)
             if (I(i,j) == 1 && I(i+1,j+1) == 1) || (I(i+1,j) == 1 && I(i,j+1) == 1)
                 I(i:i+1,j:j+1) = 1;
             end
+        end
+    end
+end
+
+% 3.4 : Background pixels separation : back to G (gray levels image)
+function Gsortie = bckgrndPixelSeparation(G,intermediateDisplay,thresholdSelection)
+    % Contruction intervalle [u,L]
+    Hist = imhist(G);
+    if intermediateDisplay
+        subplot(3, 4, 10), plot(Hist), xlim([0 255]), title("G histogram");
+    end
+    
+    nbPixels = Hist(255); u = 255; L = 255;
+    [m,n] = size(G);
+    nbTotPixels = m*n;
+
+    while nbPixels <= thresholdSelection*nbTotPixels
+        u = u - 1;
+        nbPixels = nbPixels + Hist(u);
+    end
+    
+    G = double(G); %sinon pb avec multiplication matrice car int
+    G2 = uint8((G<=u).*G + (G>u)*L);
+    if intermediateDisplay
+        subplot(3, 4, 11), imshow(G2), title("G separation eq2");
+    end
+
+    G3 = uint8((G<=u)*u + (G>u)*L);
+    if intermediateDisplay
+        subplot(3, 4, 12), imshow(G3), title("G separation eq3");
+    end
+    
+    Gsortie = G2;
+end
+
+%3.5.1 Improving text region localization
+function newTextRegionsLimits = improvementLocalization(G,textRegions,L)
+    newTextRegionsLimits = [];
+    % For each text region
+    for r=1:height(textRegions)        
+        % Parameters
+        x = textRegions(r,2);
+        y = textRegions(r,1);
+        l = textRegions(r,3);
+        h = textRegions(r,4);
+        newX = 0; newY = 0; newL = 0; newH = 0;
+        
+        % Selection of a representative line
+        max = 0;
+        maxCurrentLine = 0;
+        indexReference = x;
+        for i=x:x+h
+            for j=y:y+l
+                if G(i,j)==L
+                    maxCurrentLine = maxCurrentLine + 1;
+                end
+            end
+            if max < maxCurrentLine
+                max = maxCurrentLine;
+                indexReference = i;
+            end
+        end
+        
+        % Comparison with precedent line to get newX
+        newX = comparisonPrecedentLine(indexReference,y,l,G,L);
+        
+        % Comparison with next line to get newH
+        newH = comparisonNextLine(indexReference,y,l,G,L)-newX;
+        
+        % No vertical changes for now
+        newY = y;
+        newL = l;
+        for i=newX:newX+newH
+            leftTest = 1; rightTest = 1;
+            while rightTest && newY + newL < length(G)
+                if G(i,newY + newL + 1)==L
+                    newL = newL + 1;
+                else
+                    rightTest = 0;
+                end
+            end
+            while leftTest && newY > 1
+                if G(i,newY-1)==L
+                    newY = newY - 1;
+                    newL = newL + 1;
+                else
+                    leftTest = 0;
+                end
+            end
+        end
+        
+        if newH ~= 0 && newL~=0
+            newTextRegionsLimits = [newTextRegionsLimits ; [newY newX newL newH]];
+        end
+    end 
+end
+
+function x=comparisonPrecedentLine(indexLine,y,l,G,L)
+    if indexLine == 1
+        x = 1;
+    else
+        posR = []; posPrecR = [];
+        for j=y:y+l
+            if G(indexLine,j)==L
+                posR = [posR j];
+            end
+            if G(indexLine-1,j)==L
+                posPrecR = [posPrecR j];
+            end
+        end
+
+        if length(intersect(posR,posPrecR))>0
+            x = comparisonPrecedentLine(indexLine-1,y,l,G,L);
+        else
+            x = indexLine;
+        end
+    end
+end
+
+function h=comparisonNextLine(indexLine,y,l,G,L)
+    if indexLine == height(G)
+        h = height(G);
+    else
+        posR = []; posNextR = [];
+        for j=y:y+l
+            if G(indexLine,j)==L
+                posR = [posR j];
+            end
+            if G(indexLine+1,j)==L
+                posNextR = [posNextR j];
+            end
+        end
+
+        if length(intersect(posR,posNextR))>0
+            h = comparisonNextLine(indexLine+1,y,l,G,L);
+        else
+            h = indexLine;
         end
     end
 end
