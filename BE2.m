@@ -2,20 +2,21 @@ clear
 close all
 
 images = [1:13 26 39 123 129 185 5001 5003 5005 5007 7000 7003 7016:7018 7020 9000:9002 9005 9010 9013:9017 9019 9023 9026:9029 9031 9034 9035 9041 9043 9044 9048 9054 9057 9059 9060 9062 9063 9071 9074:9076 10001];
-for i=1:5
+for i=21:21
     I = imread(strcat('Images\',num2str(images(i)),'.bmp'));
     resizeFactor = 80/length(I);
     thresholdBinary = 0.7;
-    thresholdSelection = 0.02;
+    thresholdSelection = 0.05;
     thresholdTextRegionDistance = 0.15;
-    detection_texte(I,'.jpg',false,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance);
+    thresholdM4 = 0.75;
+    detection_texte(I,'.jpg',false,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance,thresholdM4);
 end
 
 % thresholdBinary : si sup au seuil alors 1 sinon 0 pour image binaire. 
 % thresholdSelection : 
 % thresholdTextRegionDistance : si 
 
-function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance)
+function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance,thresholdM4)
     %% 3.1 Digital image tranformation
     % Conversion jpg to bmp
 %     I = imread(strcat('Images\',image,type));
@@ -44,44 +45,45 @@ function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBi
 
     %% 3.2 Enhancement of text region patterns
     % Gray level to binary
-    threshold1 = 0.25;
+    threshold1 = 0.5;
     Binary1 = im2bw(G,threshold1);
     if intermediateDisplay
         subplot(3, 4, 4), imshow(Binary1), title("Binary1 th = "+threshold1);
     end
 
-    threshold2 = 0.5;
+    threshold2 = 0.7;
     Binary2 = im2bw(G,threshold2);
     if intermediateDisplay
         subplot(3, 4, 5), imshow(Binary2), title("Binary2 th = "+threshold2);
     end
-
-    threshold3 = 0.7;
-    Binary3 = im2bw(G,threshold3);
-    if intermediateDisplay
-        subplot(3, 4, 6), imshow(Binary3), title("Binary3 th = "+threshold3);
-    end
     
     Binary = im2bw(G,thresholdBinary);
     if intermediateDisplay
-        subplot(3, 4, 7), imshow(Binary), title("Binary th = "+thresholdBinary);
+        subplot(3, 4, 6), imshow(Binary), title("Binary th = "+thresholdBinary);
     end
 
     % Multi-resolution method : nearest neighbour method
     J = imresize(Binary,resizeFactor);
     if intermediateDisplay
-        subplot(3, 4, 8), imshow(J), title("J with th =" + thresholdBinary);
+        subplot(3, 4, 7), imshow(J), title("J with th =" + thresholdBinary);
     end
     
 
     %% 3.3 Potential text regions localization
     ITextRegionControl = zeros(size(J));
     ITextRegion = J;
-    while isequal(ITextRegion,ITextRegionControl)==false
+    
+    ITextRegion = M4(ITextRegion,thresholdM4);
+    ITextRegion = M5(ITextRegion);
+    if intermediateDisplay
+        subplot(3, 4, 8), imshow(ITextRegion), title("ITextRegion M45");
+    end
+    
+    while ~isequal(ITextRegion,ITextRegionControl)
         ITextRegionControl = ITextRegion;
-        ITextRegion = firstmask(ITextRegion);
-        ITextRegion = secondmask(ITextRegion);
-        %ITextRegion = thirdmask(ITextRegion);
+        ITextRegion = M1(ITextRegion);
+        ITextRegion = M2(ITextRegion);
+        %ITextRegion = M3(ITextRegion);
     end
     if intermediateDisplay
         subplot(3, 4, 9), imshow(ITextRegion), title("ITextRegion");
@@ -160,8 +162,9 @@ function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBi
 
 end
 
+%% Functions
 % 3.3: 1st mask : Set all pixels to 1 when the border pixels on the left and on the right are valued by 1.
-function J = firstmask(I)
+function J = M1(I)
     J = I;
     [m,n] = size(I);
     for i=1:m 
@@ -183,7 +186,7 @@ function J = firstmask(I)
 end
 
 % 3.3: 2nd mask : leads to a diagonal closure when two border pixels on the diagonal are valued by 1
-function J = secondmask(I)
+function J = M2(I)
     J = I;
     [m,n] = size(I);
     % Top left and bottom right corners
@@ -220,7 +223,7 @@ function J = secondmask(I)
 end
 
 % 3.3: 3rd mask : similar to the previous one. It aims at a diagonal closure as well
-function J = thirdmask(I)
+function J = M3(I)
     J = I;
     [m,n] = size(I);
     % Top left and bottom right corners
@@ -369,3 +372,53 @@ function h=comparisonNextLine(indexLine,y,l,G,L)
         end
     end
 end
+
+%3.5.2 Negative form elimination
+function J = M4(I,thresholdM4)
+    J = I;
+    [m,n] = size(I);
+    for i=1:m
+        left = 0;
+        right = 0;
+        j = 1;
+        while (~left || ~right) && j <= n
+           % Get left
+           if left == 0 && I(i,j)==1
+               left = j;
+           end
+           % Get right
+           if right == 0 && I(i,n-j+1)==1
+               right = n-j+1;
+           end
+           j = j+1;
+        end
+        if right-left > thresholdM4*n
+            J(i,left+1:right-1) = 0;
+        end
+    end
+end
+
+function J = M5(I)
+    J = I;
+    [m,n] = size(I);
+    for i=2:m-1
+        for j=2:n-1
+            if I(i,j)==1 && isequal(I(i-1,j-1:j+1),[0 0 0]) && isequal(I(i+1,j-1:j+1),[0 0 0]) && I(i,j-1)==0 && I(i,j+1)==0
+                J(i,j) = 0;
+            end
+        end
+    end
+end
+
+
+
+
+
+
+
+
+
+
+
+
+
