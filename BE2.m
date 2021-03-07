@@ -2,15 +2,40 @@ clear
 close all
 
 images = [1:13 26 39 123 129 185 5001 5003 5005 5007 7000 7003 7016:7018 7020 9000:9002 9005 9010 9013:9017 9019 9023 9026:9029 9031 9034 9035 9041 9043 9044 9048 9054 9057 9059 9060 9062 9063 9071 9074:9076 10001];
-for i=1:5
+
+figure("Name","0.02 ; 0.7 ; 80 ; 0.15 ; 0.75");
+place = 1;
+for i=[5 7:10 13 16:18 22:25 28 42 49:51 56 57 60:62]
     I = imread(strcat('Images\',num2str(images(i)),'.bmp'));
-    thresholdSelection = 0.02;
-    thresholdBinary = 0.7;
+    thresholdSelection = 0.04;
+    thresholdBinary = 0.8;
     resizeFactor = 80/length(I);
     thresholdTextRegionDistance = 0.15;
     thresholdM4 = 0.75;
-    detection_texte(I,'.jpg',true,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4);
+    subplot(5,5, place);
+    f=detection_texte(I,'.jpg',false,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4);
+    title(num2str(images(i)));
+    place = place + 1;
 end
+
+% Config ok pour images données
+% "0.02 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [1 2 4 14  15 19 20 30 31 32 33 36 37 38 39 40 43 44 47 55]
+%                               reste : [3 5:13 16:18 21:29 34 35 41 42 45 46 48:54 56:62]
+% "0.01 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [52]
+%                               reste : [3 5:13 16:18 21:29 34 35 41 42 45 46 48:51 53 54 56:62]
+% "0.25 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [21]
+%                               reste : [3 5:13 16:18 22:29 34 35 41 42 45 46 48:51 53 54 56:62]
+% "0.1 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [34 35 45 48 53 54]
+%                               reste : [3 5:13 16:18 22:29 41 42 46 49:51 56:62]
+% "0.07 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [29 46]
+%                               reste : [3 5:13 16:18 22:28 41 42 49:51 56:62]
+% "0.05 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [11 59]
+%                               reste : [3 5:10 12 13 16:18 22:28 41 42 49:51 56:58 60:62]
+% "0.012 ; 0.46 ; 80 ; 0.15 ; 0.75" → images en indices : [3 6 12 41 58]
+%                               reste : [5 7:10 13 16:18 22:28 42 49:51 56 57 60:62]
+% "0.01 ; 0.2 ; 50 ; 0.15 ; 0.75" → images en indices : [26 27]
+%                               reste : [5 7:10 13 16:18 22:25 28 42 49:51 56 57 60:62]
+
 
 % thresholdSelection : si dans les pixels les plus clairs (seuil = % de 
 %    pixels) alors mis à 255 dans image en niveaux de gris
@@ -24,7 +49,7 @@ end
 % thresholdM4 : pourcentage de la taille de l'image, si distance entre 2
 %    pixels blancs est supérieure au seuil alors pixels entre 2 mis à 0
 
-function detection_texte(image,type,intermediateDisplay,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4)
+function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4)
     %% 3.1 Digital image tranformation
     % Conversion jpg to bmp
 %     I = imread(strcat('Images\',image,type));
@@ -118,14 +143,8 @@ function detection_texte(image,type,intermediateDisplay,thresholdSelection,thres
     for i=1:height(regionsLimitsHighRes)
         toplefty = max(regionsLimitsHighRes(i,1),1);
         topleftx = max(regionsLimitsHighRes(i,2),1);
-        widthRect = regionsLimitsHighRes(i,3);        
-        if toplefty+widthRect > width(I)
-           widthRect = floor(widthRect - mod(width(I),1/resizeFactor) - 1);
-        end
-        heightRect = regionsLimitsHighRes(i,4);
-        if topleftx+heightRect > height(I)
-           heightRect = floor(heightRect - mod(height(I),1/resizeFactor));
-        end
+        widthRect = min(regionsLimitsHighRes(i,3),width(I)-toplefty);
+        heightRect = min(regionsLimitsHighRes(i,4),height(I)-topleftx);
         rBis= [rBis ; [toplefty topleftx widthRect heightRect]];
     end
     regionsLimitsHighRes = rBis;
@@ -154,7 +173,10 @@ function detection_texte(image,type,intermediateDisplay,thresholdSelection,thres
         if intermediateDisplay
             findpeaks(H,'SortStr','descend','NPeaks',2);
         end
-        distMaxima = abs(locs(1) - locs(2));
+        distMaxima = 0;
+        if length(locs)>1
+            distMaxima = abs(locs(1) - locs(2));
+        end
 
         % Filter effective text regions
         if distMaxima > thresholdTextRegionDistance*255
@@ -163,11 +185,10 @@ function detection_texte(image,type,intermediateDisplay,thresholdSelection,thres
     end
     
         % Display of the text regions identified
-    figure(); imshow(I,[0,255]);
+    f=imshow(I,[0,255]);
     for i=1:height(effectiveTextRegion)
         rectangle('Position',effectiveTextRegion(i,:),'EdgeColor','r','LineWidth',1);
     end
-
 end
 
 %% Functions
