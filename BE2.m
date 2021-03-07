@@ -5,15 +5,15 @@ images = [1:13 26 39 123 129 185 5001 5003 5005 5007 7000 7003 7016:7018 7020 90
 
 figure("Name","0.02 ; 0.7 ; 80 ; 0.15 ; 0.75");
 place = 1;
-for i=[5 7:10 13 16:18 22:25 28 42 49:51 56 57 60:62]
+for i=[1 2 4 14  15 19 20 30 31 32 33 36 37 38 39 40 43 44 47 55]
     I = imread(strcat('Images\',num2str(images(i)),'.bmp'));
-    thresholdSelection = 0.04;
-    thresholdBinary = 0.8;
+    thresholdSelection = 0.02;
+    thresholdBinary = 0.7;
     resizeFactor = 80/length(I);
     thresholdTextRegionDistance = 0.15;
     thresholdM4 = 0.75;
-    subplot(5,5, place);
-    f=detection_texte(I,'.jpg',false,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4);
+    subplot(4,5, place);
+    detection_texte(I,'.jpg',false,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4);
     title(num2str(images(i)));
     place = place + 1;
 end
@@ -58,18 +58,18 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
     % Get RGB image
     I = image;
     if intermediateDisplay
-        figure, subplot(3, 4, 1), imshow(I,[0,255]), title("I");
+        figure, subplot(2,5,1), imshow(I,[0,255]), title("Initial Image");
     end
 
     % Gray level image
     G = rgb2gray(I);
     if intermediateDisplay
-        subplot(3, 4, 2), imshow(G), title("G");
+        subplot(2,5,2), imshow(G), title("Grayscale image");
     end
 
     Gtranspose = 255 - G;
     if intermediateDisplay
-        subplot(3, 4, 3), imshow(Gtranspose), title("Gtranspose");
+        subplot(2,5,3), imshow(Gtranspose), title("Grayscale transposed");
     end
     
     % Background Pixel Separation
@@ -78,27 +78,15 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
 
     %% 3.2 Enhancement of text region patterns
     % Gray level to binary
-    threshold1 = 0.5;
-    Binary1 = im2bw(G,threshold1);
-    if intermediateDisplay
-        subplot(3, 4, 4), imshow(Binary1), title("Binary1 th = "+threshold1);
-    end
-
-    threshold2 = 0.7;
-    Binary2 = im2bw(G,threshold2);
-    if intermediateDisplay
-        subplot(3, 4, 5), imshow(Binary2), title("Binary2 th = "+threshold2);
-    end
-    
     Binary = im2bw(G,thresholdBinary);
     if intermediateDisplay
-        subplot(3, 4, 6), imshow(Binary), title("Binary th = "+thresholdBinary);
+        subplot(2,5,4), imshow(Binary), title("Binary Image, threshold = "+thresholdBinary);
     end
 
     % Multi-resolution method : nearest neighbour method
     J = imresize(Binary,resizeFactor);
     if intermediateDisplay
-        subplot(3, 4, 7), imshow(J), title("J with th =" + thresholdBinary);
+        subplot(2,5,5), imshow(J), title("BW redimensionned, th =" + thresholdBinary);
     end
     
 
@@ -109,7 +97,7 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
     ITextRegion = M4(ITextRegion,thresholdM4);
     ITextRegion = M5(ITextRegion);
     if intermediateDisplay
-        subplot(3, 4, 8), imshow(ITextRegion), title("ITextRegion M45");
+        subplot(2,5,6), imshow(ITextRegion), title("BW redim filtered with M45");
     end
     
     while ~isequal(ITextRegion,ITextRegionControl)
@@ -119,7 +107,7 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
         %ITextRegion = M3(ITextRegion);
     end
     if intermediateDisplay
-        subplot(3, 4, 9), imshow(ITextRegion), title("ITextRegion");
+        subplot(2,5,7), imshow(ITextRegion), title("BW with potential text regions");
     end
     
     %% 3.4 Selection of effective text regions
@@ -164,7 +152,7 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
         % Histogram for each region
         H = imhist(G(topleftx:topleftx+heightRect,toplefty:toplefty+widthRect));
         if intermediateDisplay
-            subplot(3,3,i), plot(H), xlim([0 255]), title("Hist region "+i);
+            subplot(3,3,i), plot(H), xlim([0 255]);
         end
 
         % Get 2 highest local maxima
@@ -270,7 +258,7 @@ function Gsortie = bckgrndPixelSeparation(G,intermediateDisplay,thresholdSelecti
     % Contruction intervalle [u,L]
     Hist = imhist(G);
     if intermediateDisplay
-        subplot(3, 4, 10), plot(Hist), xlim([0 255]), title("G histogram");
+        subplot(2,5,8), plot(Hist), xlim([0 255]), title("Grayscale image histogram");
     end
     
     nbPixels = Hist(255); u = 255; L = 255;
@@ -285,12 +273,12 @@ function Gsortie = bckgrndPixelSeparation(G,intermediateDisplay,thresholdSelecti
     G = double(G); %sinon pb avec multiplication matrice car int
     G2 = uint8((G<=u).*G + (G>u)*L);
     if intermediateDisplay
-        subplot(3, 4, 11), imshow(G2), title("G separation eq2");
+        subplot(2,5,9), imshow(G2), title("Method 2 pixel separation");
     end
 
     G3 = uint8((G<=u)*u + (G>u)*L);
     if intermediateDisplay
-        subplot(3, 4, 12), imshow(G3), title("G separation eq3");
+        subplot(2,5,10), imshow(G3), title("Method 3 pixel separation");
     end
     
     Gsortie = G2;
@@ -352,9 +340,7 @@ function newTextRegionsLimits = improvementLocalization(G,textRegions,L)
             end
         end
         
-        if newH ~= 0 && newL~=0
-            newTextRegionsLimits = [newTextRegionsLimits ; [newY newX newL newH]];
-        end
+        newTextRegionsLimits = [newTextRegionsLimits ; [newY newX newL newH]];
     end 
 end
 
@@ -438,16 +424,3 @@ function J = M5(I)
         end
     end
 end
-
-
-
-
-
-
-
-
-
-
-
-
-
