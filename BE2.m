@@ -1,24 +1,26 @@
 clear
 close all
 
+%liste contenant les numeros des différentes images
 images = [1:13 26 39 123 129 185 5001 5003 5005 5007 7000 7003 7016:7018 7020 9000:9002 9005 9010 9013:9017 9019 9023 9026:9029 9031 9034 9035 9041 9043 9044 9048 9054 9057 9059 9060 9062 9063 9071 9074:9076 10001];
 
 figure("Name","0.02 ; 0.7 ; 80 ; 0.15 ; 0.75");
 place = 1;
-for i=[1 2 4 14  15 19 20 30 31 32 33 36 37 38 39 40 43 44 47 55]
-    I = imread(strcat('Images\',num2str(images(i)),'.bmp'));
-    thresholdSelection = 0.02;
-    thresholdBinary = 0.7;
-    resizeFactor = 80/length(I);
-    thresholdTextRegionDistance = 0.15;
-    thresholdM4 = 0.75;
-    subplot(4,5, place);
-    detection_texte(I,'.jpg',false,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4);
+for i=[1 2 4 14  15 19 20 30 31 32 33 36 37 38 39 40 43 44 47 55] %les images que l'on souhaite traiter
+    I = imread(strcat('Images\',num2str(images(i)),'.bmp')); %on importe l'image
+    thresholdSelection = 0.02; %seuil pour la mise en avant du texte
+    thresholdBinary = 0.7; %seuil pour le passage en binaire
+    resizeFactor = 80/length(I); %seuil de redimensionnement (M) : on passe toutes les images à 80 px
+    thresholdTextRegionDistance = 0.15; %seuil pour distinction des zones de texte réelles
+    thresholdM4 = 0.75; %seuil pour le masque 4
+    subplot(4,5, place); 
+    detection_texte(I,'.jpg',false,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4); %lancement de la méthode
     title(num2str(images(i)));
     place = place + 1;
 end
 
-% Config ok pour images données
+% Paramètres qui fonctionnent pour les images indiquées et images restantes
+
 % "0.02 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [1 2 4 14  15 19 20 30 31 32 33 36 37 38 39 40 43 44 47 55]
 %                               reste : [3 5:13 16:18 21:29 34 35 41 42 45 46 48:54 56:62]
 % "0.01 ; 0.7 ; 80 ; 0.15 ; 0.75" → images en indices : [52]
@@ -37,6 +39,8 @@ end
 %                               reste : [5 7:10 13 16:18 22:25 28 42 49:51 56 57 60:62]
 
 
+%Explications supplémentaires pour les seuils
+
 % thresholdSelection : si dans les pixels les plus clairs (seuil = % de 
 %    pixels) alors mis à 255 dans image en niveaux de gris
 
@@ -49,6 +53,8 @@ end
 % thresholdM4 : pourcentage de la taille de l'image, si distance entre 2
 %    pixels blancs est supérieure au seuil alors pixels entre 2 mis à 0
 
+
+%la fonction qui lance la méthode complète
 function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4)
     %% 3.1 Digital image tranformation
     % Conversion jpg to bmp
@@ -57,56 +63,56 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
 
     % Get RGB image
     I = image;
-    if intermediateDisplay
+    if intermediateDisplay %si on souhaite afficher les différentes étapes pour chaque image
         figure, subplot(2,5,1), imshow(I,[0,255]), title("Initial Image");
     end
 
-    % Gray level image
+    % Gray level image : conversion en niveaux de gris
     G = rgb2gray(I);
-    if intermediateDisplay
+    if intermediateDisplay %plot intermédiaire
         subplot(2,5,2), imshow(G), title("Grayscale image");
     end
 
-    Gtranspose = 255 - G;
-    if intermediateDisplay
+    Gtranspose = 255 - G; %traitement pour les images à texte foncé sur fond clair
+    if intermediateDisplay %plot intermédiaire
         subplot(2,5,3), imshow(Gtranspose), title("Grayscale transposed");
     end
     
-    % Background Pixel Separation
+    % Background Pixel Separation : fonction plus bas
     G = bckgrndPixelSeparation(G,intermediateDisplay,thresholdSelection);
 
 
     %% 3.2 Enhancement of text region patterns
     % Gray level to binary
-    Binary = im2bw(G,thresholdBinary);
-    if intermediateDisplay
+    Binary = im2bw(G,thresholdBinary); %passage en binaire
+    if intermediateDisplay %plot intermédiaire
         subplot(2,5,4), imshow(Binary), title("Binary Image, threshold = "+thresholdBinary);
     end
 
     % Multi-resolution method : nearest neighbour method
-    J = imresize(Binary,resizeFactor);
-    if intermediateDisplay
+    J = imresize(Binary,resizeFactor); %redimensionnement de l'image binaire
+    if intermediateDisplay %plot intermédiaire
         subplot(2,5,5), imshow(J), title("BW redimensionned, th =" + thresholdBinary);
     end
     
 
     %% 3.3 Potential text regions localization
-    ITextRegionControl = zeros(size(J));
+    ITextRegionControl = zeros(size(J)); %critère d'arret de la boucle while
     ITextRegion = J;
     
-    ITextRegion = M4(ITextRegion,thresholdM4);
-    ITextRegion = M5(ITextRegion);
-    if intermediateDisplay
+    ITextRegion = M4(ITextRegion,thresholdM4);%on applique le masque 4 à l'image binaire redimensionnée
+    ITextRegion = M5(ITextRegion);%puis on applique le masque 5
+    if intermediateDisplay %plot intermédiaire
         subplot(2,5,6), imshow(ITextRegion), title("BW redim filtered with M45");
     end
     
-    while ~isequal(ITextRegion,ITextRegionControl)
-        ITextRegionControl = ITextRegion;
-        ITextRegion = M1(ITextRegion);
-        ITextRegion = M2(ITextRegion);
-        %ITextRegion = M3(ITextRegion);
+    while ~isequal(ITextRegion,ITextRegionControl) %tant que l'image est modifiée par les masques
+        ITextRegionControl = ITextRegion; %on modifie le critère d'arrêt en y stockant la dernière image obtenue
+        ITextRegion = M1(ITextRegion); %on applique M1
+        ITextRegion = M2(ITextRegion); %on applique M2
+        %ITextRegion = M3(ITextRegion); 
     end
-    if intermediateDisplay
+    if intermediateDisplay %plot intermédiaire
         subplot(2,5,7), imshow(ITextRegion), title("BW with potential text regions");
     end
     
@@ -118,30 +124,33 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
     % - Calcul distance entre maxs : si sup à un seuil (15po) alors calssifié comme region de texte
 
         % Get regions limits for low resolution
-    regionsLimitsRaw = regionprops(ITextRegion);
-    regionsLimitsLowRes = zeros(length(regionsLimitsRaw),4);
-    for i=1:length(regionsLimitsRaw)
-        regionsLimitsLowRes(i,:) = floor(regionsLimitsRaw(i).BoundingBox);
+    regionsLimitsRaw = regionprops(ITextRegion); %on récupère les propriétés des différentes régions de l'image (les rectangles)
+    regionsLimitsLowRes = zeros(length(regionsLimitsRaw),4);%liste de stockage des rectangles
+    for i=1:length(regionsLimitsRaw) %pour chaque rectangle
+        regionsLimitsLowRes(i,:) = floor(regionsLimitsRaw(i).BoundingBox); %on stocke : [abscisse du point en haut à gauche, ordonnée, longueur, hauteur]
     end
 
         % Get regions limits for initial resolution
-    regionsLimitsHighRes = floor(regionsLimitsLowRes/resizeFactor);
+    regionsLimitsHighRes = floor(regionsLimitsLowRes/resizeFactor); %on convertit les positions des rectangles précédentes pour adapter au format initial de l'image
     
     rBis = []; % Ajust limits to enter image size
-    for i=1:height(regionsLimitsHighRes)
-        toplefty = max(regionsLimitsHighRes(i,1),1);
+    for i=1:height(regionsLimitsHighRes) %pour tous les rectangles
+        toplefty = max(regionsLimitsHighRes(i,1),1); %on s'assure que le point en haut à gauche ne sort pas de l'image
         topleftx = max(regionsLimitsHighRes(i,2),1);
-        widthRect = min(regionsLimitsHighRes(i,3),width(I)-toplefty);
-        heightRect = min(regionsLimitsHighRes(i,4),height(I)-topleftx);
-        rBis= [rBis ; [toplefty topleftx widthRect heightRect]];
+        widthRect = min(regionsLimitsHighRes(i,3),width(I)-toplefty); %on s'assure que la droite du rectangle ne sort pas de l'image
+        heightRect = min(regionsLimitsHighRes(i,4),height(I)-topleftx); %on s'assure que le bas du rectangle ne sort pas de l'image
+        rBis= [rBis ; [toplefty topleftx widthRect heightRect]]; %on stocke les nouvelles limites obtenues
     end
     regionsLimitsHighRes = rBis;
     
+    %amélioration : on fait une séparation des pixels de fond pour chaque
+    %zone de texte obtenue 
+    %fonction plus bas
     regionsLimitsHighRes = improvementLocalization(G,regionsLimitsHighRes,255);
 
     effectiveTextRegion = [];
 
-    if intermediateDisplay
+    if intermediateDisplay %si plot intermédiaire, nouvelle figure
         figure();
     end
     for i=1:height(regionsLimitsHighRes)
@@ -151,24 +160,24 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
         heightRect = regionsLimitsHighRes(i,4);
         % Histogram for each region
         H = imhist(G(topleftx:topleftx+heightRect,toplefty:toplefty+widthRect));
-        if intermediateDisplay
+        if intermediateDisplay %plot intermédiaire de l'histogramme
             subplot(3,3,i), plot(H), xlim([0 255]);
         end
 
         % Get 2 highest local maxima
         H(257) = 0; % To get pick at 255
-        [peaks, locs] = findpeaks(H,'SortStr','descend','NPeaks',2);
-        if intermediateDisplay
+        [peaks, locs] = findpeaks(H,'SortStr','descend','NPeaks',2); %les deux premiers max de H
+        if intermediateDisplay %plot intermédiaire
             findpeaks(H,'SortStr','descend','NPeaks',2);
         end
         distMaxima = 0;
-        if length(locs)>1
-            distMaxima = abs(locs(1) - locs(2));
+        if length(locs)>1 %pour éviter les bugs dus aux zones de couleur unies
+            distMaxima = abs(locs(1) - locs(2)); %calcul de la distance entre deux pics
         end
 
         % Filter effective text regions
-        if distMaxima > thresholdTextRegionDistance*255
-            effectiveTextRegion = [ effectiveTextRegion ; regionsLimitsHighRes(i,:)];
+        if distMaxima > thresholdTextRegionDistance*255 %si les deux pics sont assez éloignés (seuil)
+            effectiveTextRegion = [ effectiveTextRegion ; regionsLimitsHighRes(i,:)]; %la région est considérée comme région de texte
         end
     end
     
@@ -189,15 +198,15 @@ function J = M1(I)
         max = 0;
         for j=1:n
            if I(i,j)==1
-               if min == 0
-                   min = j;
-               else
-                   max = j;
+               if min == 0 %si c'est le premier 1 de la ligne
+                   min = j; %on stocke la colonne
+               else %sinon
+                   max = j; %on stocke la colonne jusqu'à arriver au dernier 1 de la ligne
                end
            end
         end
-        if min ~= 0 && max ~= 0
-            J(i,min:max) = 1;
+        if min ~= 0 && max ~= 0 %si il y a au moins un 1 sur la ligne
+            J(i,min:max) = 1; %les px entre le premier et le dernier 1 deviennent 1
         end
     end
 end
