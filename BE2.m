@@ -2,21 +2,29 @@ clear
 close all
 
 images = [1:13 26 39 123 129 185 5001 5003 5005 5007 7000 7003 7016:7018 7020 9000:9002 9005 9010 9013:9017 9019 9023 9026:9029 9031 9034 9035 9041 9043 9044 9048 9054 9057 9059 9060 9062 9063 9071 9074:9076 10001];
-for i=21:21
+for i=1:5
     I = imread(strcat('Images\',num2str(images(i)),'.bmp'));
-    resizeFactor = 80/length(I);
+    thresholdSelection = 0.02;
     thresholdBinary = 0.7;
-    thresholdSelection = 0.05;
+    resizeFactor = 80/length(I);
     thresholdTextRegionDistance = 0.15;
     thresholdM4 = 0.75;
-    detection_texte(I,'.jpg',false,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance,thresholdM4);
+    detection_texte(I,'.jpg',true,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4);
 end
 
-% thresholdBinary : si sup au seuil alors 1 sinon 0 pour image binaire. 
-% thresholdSelection : 
-% thresholdTextRegionDistance : si 
+% thresholdSelection : si dans les pixels les plus clairs (seuil = % de 
+%    pixels) alors mis à 255 dans image en niveaux de gris
 
-function detection_texte(image,type,intermediateDisplay,resizeFactor,thresholdBinary,thresholdSelection,thresholdTextRegionDistance,thresholdM4)
+% thresholdBinary : si sup au seuil alors 1 sinon 0 pour image binaire
+
+% thresholdTextRegionDistance : si distance des 2 plus hauts pics de 
+%    l'histogramme est inférieure au seuil alors supprimée des regions de
+%    textes
+
+% thresholdM4 : pourcentage de la taille de l'image, si distance entre 2
+%    pixels blancs est supérieure au seuil alors pixels entre 2 mis à 0
+
+function detection_texte(image,type,intermediateDisplay,thresholdSelection,thresholdBinary,resizeFactor,thresholdTextRegionDistance,thresholdM4)
     %% 3.1 Digital image tranformation
     % Conversion jpg to bmp
 %     I = imread(strcat('Images\',image,type));
