@@ -97,7 +97,6 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
     
 
     %% 3.3 Potential text regions localization
-    ITextRegionControl = zeros(size(J)); %critère d'arret de la boucle while
     ITextRegion = J;
     
     ITextRegion = M4(ITextRegion,thresholdM4);%on applique le masque 4 à l'image binaire redimensionnée
@@ -106,6 +105,7 @@ function f=detection_texte(image,type,intermediateDisplay,thresholdSelection,thr
         subplot(2,5,6), imshow(ITextRegion), title("BW redim filtered with M45");
     end
     
+    ITextRegionControl = zeros(size(J)); %critère d'arret de la boucle while
     while ~isequal(ITextRegion,ITextRegionControl) %tant que l'image est modifiée par les masques
         ITextRegionControl = ITextRegion; %on modifie le critère d'arrêt en y stockant la dernière image obtenue
         ITextRegion = M1(ITextRegion); %on applique M1
@@ -239,11 +239,11 @@ function J = M2(I)
                bottomleft = n-j+1;
            end
         end
-        % Si les coins supérieur gauche et inférieur droit sont definis, on met à 1 les pixels appartenant au "rectangle"
+        % Si les coins supérieur gauche et inférieur droit sont définis, on met à 1 les pixels appartenant au "rectangle"
         if topleft ~= 0 && bottomright ~= 0
             J(i:i+1,topleft:bottomright) = 1;
         end
-        % Si les coins supérieur droite et inférieur gauche sont definis, on met à 1 les pixels appartenant au "rectangle"
+        % Si les coins supérieur droite et inférieur gauche sont définis, on met à 1 les pixels appartenant au "rectangle"
         if topright ~= 0 && bottomleft ~= 0
             J(i:i+1,bottomleft:topright) = 1;
         end
@@ -306,19 +306,19 @@ function newTextRegionsLimits = improvementLocalization(G,textRegions,L)
     % For each text region
     for r=1:height(textRegions)        
         % Parameters
-        x = textRegions(r,2);
-        y = textRegions(r,1);
+        x = textRegions(r,1);
+        y = textRegions(r,2);        
         l = textRegions(r,3);
         h = textRegions(r,4);
-        newX = 0; newY = 0; newL = 0; newH = 0;
+        newY = 0; newX = 0; newL = 0; newH = 0;
         
         % Selection of a representative line
         max = 0;
         maxCurrentLine = 0;
-        indexReference = x;
+        indexReference = y;
         % Parcours de chaque ligne
-        for i=x:x+h
-            for j=y:y+l
+        for i=y:y+h
+            for j=x:x+l
                 % Comptage du nombre de pixel de valeur max sur la ligne
                 if G(i,j)==L
                     maxCurrentLine = maxCurrentLine + 1;
@@ -331,15 +331,15 @@ function newTextRegionsLimits = improvementLocalization(G,textRegions,L)
             end
         end
         
-        % Comparison with precedent line to get newX : recursivity
-        newX = comparisonPrecedentLine(indexReference,y,l,G,L);
+        % Comparison with precedent line to get newY : recursivity
+        newY = comparisonPrecedentLine(indexReference,x,l,G,L);
         
         % Comparison with next line to get newH : recursivity
-        % Différence avec newX pour avoir la hauteur et non l'indice de la ligne
-        newH = comparisonNextLine(indexReference,y,l,G,L)-newX; 
+        % Différence avec newY pour avoir la hauteur et non l'indice de la ligne
+        newH = comparisonNextLine(indexReference,x,l,G,L)-newY; 
         
         % Vertical limits
-        newY = y;
+        newX = x;
         newL = l; newLcopie = 0;
         
         % Boucle tant que la largeur de la region change
@@ -347,14 +347,14 @@ function newTextRegionsLimits = improvementLocalization(G,textRegions,L)
             newLcopie = newL;
             
             % Parcours des lignes de l'image
-            for i=newX:newX+newH
+            for i=newY:newY+newH
                 leftTest = 1; rightTest = 1; %conditions pour continuer les tests ou non
                 % Tant que la largeur est modifiée et que la limite gauche de l'image n'est pas atteinte
-                while rightTest && newY + newL < length(G)
+                while rightTest && newX + newL < length(G)
                     % Si le pixel à droite de la ligne est de valeur max,
                     % on augmente la largeur de la region de 1
                     % Sinon on arrete le test
-                    if G(i,newY + newL + 1)==L
+                    if G(i,newX + newL + 1)==L
                         newL = newL + 1;
                     else
                         rightTest = 0;
@@ -362,13 +362,13 @@ function newTextRegionsLimits = improvementLocalization(G,textRegions,L)
                 end
                 
                 % Tant que la largeur est modifiée et que la limite droite de l'image n'est pas atteinte
-                while leftTest && newY > 1
+                while leftTest && newX > 1
                     % Si le pixel à gauche de la ligne est de valeur max,
                     % on augmente la largeur de la region de 1 et on décale
                     % la limite gauche de 1
                     % Sinon on arrete le test
-                    if G(i,newY-1)==L
-                        newY = newY - 1;
+                    if G(i,newX-1)==L
+                        newX = newX - 1;
                         newL = newL + 1;
                     else
                         leftTest = 0;
@@ -378,21 +378,21 @@ function newTextRegionsLimits = improvementLocalization(G,textRegions,L)
         end
         
         % On stocke les nouvelles limites dans la matrice de sortie
-        newTextRegionsLimits = [newTextRegionsLimits ; [newY newX newL newH]];
+        newTextRegionsLimits = [newTextRegionsLimits ; [newX newY newL newH]];
     end 
 end
 
-function x=comparisonPrecedentLine(indexLine,y,l,G,L)
+function y=comparisonPrecedentLine(indexLine,x,l,G,L)
     % Fonction récursive qui permet de récupérer la limite horizontale
     % supérieure
     % Si on atteint la limite supérieure de l'image on la renvoie
     if indexLine == 1
-        x = 1;
+        y = 1;
     else
         % On récupère les listes des indices des pixels de valeur max de la
         % ligne de ref et celle au dessus
         posR = []; posPrecR = [];
-        for j=y:y+l
+        for j=x:x+l
             if G(indexLine,j)==L
                 posR = [posR j];
             end
@@ -405,14 +405,14 @@ function x=comparisonPrecedentLine(indexLine,y,l,G,L)
         % dessus devient la ligne de ref et on recommence par récursivité
         % Sinon on conserve la ligne de ref actuelle et on la renvoie
         if length(intersect(posR,posPrecR))>0
-            x = comparisonPrecedentLine(indexLine-1,y,l,G,L);
+            y = comparisonPrecedentLine(indexLine-1,x,l,G,L);
         else
-            x = indexLine;
+            y = indexLine;
         end
     end
 end
 
-function h=comparisonNextLine(indexLine,y,l,G,L)
+function h=comparisonNextLine(indexLine,x,l,G,L)
     % Fonction récursive qui permet de récupérer la limite horizontale
     % inférieure
     % Si on atteint la limite inférieure de l'image on la renvoie
@@ -422,7 +422,7 @@ function h=comparisonNextLine(indexLine,y,l,G,L)
         % On récupère les listes des indices des pixels de valeur max de la
         % ligne de ref et celle en dessous
         posR = []; posNextR = [];
-        for j=y:y+l
+        for j=x:x+l
             if G(indexLine,j)==L
                 posR = [posR j];
             end
@@ -435,7 +435,7 @@ function h=comparisonNextLine(indexLine,y,l,G,L)
         % dessous devient la ligne de ref et on recommence par récursivité
         % Sinon on conserve la ligne de ref actuelle et on la renvoie
         if length(intersect(posR,posNextR))>0
-            h = comparisonNextLine(indexLine+1,y,l,G,L);
+            h = comparisonNextLine(indexLine+1,x,l,G,L);
         else
             h = indexLine;
         end
